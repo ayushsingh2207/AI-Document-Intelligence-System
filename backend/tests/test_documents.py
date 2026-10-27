@@ -131,3 +131,69 @@ def test_sanitize_path_traversal(client: TestClient):
     assert ".." not in data["filename"]
     assert "/" not in data["filename"]
     assert "\\" not in data["filename"]
+
+def test_security_headers_present(client: TestClient):
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
+    assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+    assert "X-Process-Time" in response.headers
+
+def test_upload_oversized_file_rejected(client: TestClient, monkeypatch):
+    # Temporarily lower MAX_UPLOAD_SIZE_BYTES to 100KB to test 413 without allocating 16MB in tests
+    from app.config import settings
+    monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_BYTES", 100 * 1024)
+    monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
+
+    oversized_data = b"A" * (120 * 1024)
+    files = {"file": ("large.txt", oversized_data, "text/plain")}
+    response = client.post("/api/documents/upload", files=files)
+    assert response.status_code == 413
+    assert "exceeds maximum allowed size" in response.json()["detail"].lower()
+
+def test_txt_with_null_bytes_rejected(client: TestClient):
+    binary_payload = b"Hello\x00World\x00BinaryData"
+    files = {"file": ("payload.txt", binary_payload, "text/plain")}
+    response = client.post("/api/documents/upload", files=files)
+    assert response.status_code == 400
+    assert "binary data" in response.json()["detail"].lower()
+
+def test_page_boundary_types_and_approximation_flags(client: TestClient):
+    # 1. PDF physical page
+    writer = pypdf.PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    buf = io.BytesIO()
+    writer.write(buf)
+    pdf_bytes = buf.getvalue()
+    res_pdf = client.post("/api/documents/upload", files={"file": ("report.pdf", pdf_bytes, "application/pdf")})
+    assert res_pdf.status_code == 200
+    assert res_pdf.json()["extracted_pages"][0]["boundary_type"] == "physical"
+    assert res_pdf.json()["extracted_pages"][0]["is_approximate"] is False
+
+    # 2. TXT with form feed
+    txt_ff = "Page1\x0cPage2"
+    res_ff = client.post("/api/documents/upload", files={"file": ("ff.txt", txt_ff.encode("utf-8"), "text/plain")})
+    assert res_ff.status_code == 200
+    assert res_ff.json()["extracted_pages"][0]["boundary_type"] == "form_feed"
+    assert res_ff.json()["extracted_pages"][0]["is_approximate"] is False
+
+    # 3. TXT without form feed (approximate / single)
+    txt_simple = "Single continuous text block."
+    res_simple = client.post("/api/documents/upload", files={"file": ("simple.txt", txt_simple.encode("utf-8"), "text/plain")})
+    assert res_simple.status_code == 200
+    assert res_simple.json()["extracted_pages"][0]["boundary_type"] == "approximate_chunk"
+    assert res_simple.json()["extracted_pages"][0]["is_approximate"] is True
+
+def test_sample_document_identification(client: TestClient):
+    content = b"Demo briefing content"
+    files = {"file": ("[Sample] Quarterly Briefing.txt", content, "text/plain")}
+    response = client.post("/api/documents/upload", files=files)
+    assert response.status_code == 200
+    assert response.json()["is_sample"] is True
+
+    # Real user document
+    files_user = {"file": ("user_tax_return.txt", content, "text/plain")}
+    response_user = client.post("/api/documents/upload", files=files_user)
+    assert response_user.status_code == 200
+    assert response_user.json()["is_sample"] is False

@@ -41,7 +41,8 @@ export default function Home() {
 
   const handleUploadSuccess = (doc: DocumentExtractionResponse) => {
     setActiveDocument(doc);
-    setSessionDocuments((prev) => [doc, ...prev]);
+    // Deduplicate by filename so re-uploading refreshes the document entry rather than bloating session state
+    setSessionDocuments((prev) => [doc, ...prev.filter((d) => d.filename !== doc.filename)]);
   };
 
   const handleClearActiveDocument = () => {

@@ -15,10 +15,11 @@ app = FastAPI(
 )
 
 # CORS configuration
+is_wildcard = settings.cors_origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins if settings.cors_origins != ["*"] else ["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_origins,
+    allow_credentials=not is_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -32,6 +33,8 @@ async def add_process_time_and_security_headers(request: Request, call_next):
     response.headers["X-Process-Time"] = f"{process_time:.4f}s"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
 
 # Validation error handling
@@ -43,6 +46,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "success": False,
             "error": "Request validation error",
             "details": exc.errors()
+        }
+    )
+
+# Global unhandled exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Internal server error",
+            "detail": str(exc)
         }
     )
 

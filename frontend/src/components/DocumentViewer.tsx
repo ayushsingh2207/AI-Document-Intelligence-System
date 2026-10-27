@@ -95,6 +95,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300">
                   {document.file_size_formatted}
                 </span>
+                {document.is_sample && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950/80 border border-amber-800 text-amber-300">
+                    Sample / Demo Data
+                  </span>
+                )}
               </div>
 
               {/* Metadata Badges */}
@@ -219,7 +224,33 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 <ChevronRight className="w-4 h-4" />
               </button>
 
-              <div className="hidden md:flex items-center gap-1.5 ml-3 text-xs text-slate-400">
+              {/* Demarcation / Boundary Type indicator */}
+              <span
+                className={`text-[11px] px-2.5 py-1 rounded-lg border font-mono font-medium ${
+                  currentPage.boundary_type === "physical"
+                    ? "bg-emerald-950/60 border-emerald-800/60 text-emerald-300"
+                    : currentPage.boundary_type === "explicit_break"
+                    ? "bg-blue-950/60 border-blue-800/60 text-blue-300"
+                    : currentPage.boundary_type === "form_feed"
+                    ? "bg-purple-950/60 border-purple-800/60 text-purple-300"
+                    : "bg-amber-950/60 border-amber-800/60 text-amber-300"
+                }`}
+                title={
+                  currentPage.is_approximate
+                    ? "Approximate boundary: partitioned based on structural paragraph/word volume"
+                    : "Exact boundary: confirmed by document container page break markers"
+                }
+              >
+                {currentPage.boundary_type === "physical"
+                  ? "Physical Page"
+                  : currentPage.boundary_type === "explicit_break"
+                  ? "Explicit Page Break"
+                  : currentPage.boundary_type === "form_feed"
+                  ? "Form-Feed Break"
+                  : "Approximate Logical Section"}
+              </span>
+
+              <div className="hidden md:flex items-center gap-1.5 ml-2 text-xs text-slate-400">
                 <span>{currentPage.word_count.toLocaleString()} words</span>
                 <span>•</span>
                 <span>{currentPage.char_count.toLocaleString()} chars</span>

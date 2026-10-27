@@ -77,6 +77,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (isLoading) return;
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       validateAndProcessFile(files[0]);
@@ -100,7 +101,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     let filename = "";
 
     if (type === "single") {
-      filename = "quarterly_executive_summary.txt";
+      filename = "[Sample] Quarterly Executive Summary.txt";
       content = `AI DOCUMENT INTELLIGENCE SYSTEM - EXECUTIVE BRIEFING
 Document ID: DOC-2026-X1
 Status: Approved for Phase 1 Deployment
@@ -119,7 +120,7 @@ This document outlines the core architecture of the Phase 1 Ingestion and Text E
 - 100% deterministic test coverage
 - End-to-end integration between FastAPI backend and Next.js reactive frontend.`;
     } else {
-      filename = "comprehensive_ml_research_report.txt";
+      filename = "[Sample] Multi-Page Research Report.txt";
       content = `RESEARCH REPORT: ADVANCED DOCUMENT REPRESENTATION
 Section: Natural Language Processing
 Date: October 2026

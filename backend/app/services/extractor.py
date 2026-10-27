@@ -37,7 +37,9 @@ def extract_from_pdf(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any]
                 page_number=idx,
                 text=cleaned,
                 char_count=len(cleaned),
-                word_count=words
+                word_count=words,
+                is_approximate=False,
+                boundary_type="physical",
             )
         )
 
@@ -92,6 +94,8 @@ def extract_from_docx(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any
     # Convert to DocumentPage list
     extracted_pages: List[DocumentPage] = []
     page_num = 1
+    has_explicit_breaks = len(pages_text) > 1
+
     for p_lines in pages_text:
         combined = "\n\n".join(p_lines)
         cleaned = clean_extracted_text(combined)
@@ -107,7 +111,9 @@ def extract_from_docx(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any
                         page_number=page_num,
                         text=sub_chunk,
                         char_count=len(sub_chunk),
-                        word_count=len(sub_chunk.split())
+                        word_count=len(sub_chunk.split()),
+                        is_approximate=True,
+                        boundary_type="approximate_section",
                     )
                 )
                 page_num += 1
@@ -117,13 +123,18 @@ def extract_from_docx(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any
                     page_number=page_num,
                     text=cleaned,
                     char_count=len(cleaned),
-                    word_count=len(cleaned.split()) if cleaned else 0
+                    word_count=len(cleaned.split()) if cleaned else 0,
+                    is_approximate=not has_explicit_breaks,
+                    boundary_type="explicit_break" if has_explicit_breaks else "approximate_section",
                 )
             )
             page_num += 1
 
     # Extract core properties
-    metadata: Dict[str, Any] = {"format": "DOCX"}
+    metadata: Dict[str, Any] = {
+        "format": "DOCX",
+        "has_explicit_page_breaks": has_explicit_breaks,
+    }
     try:
         props = doc.core_properties
         if props.title:
@@ -152,7 +163,8 @@ def extract_from_txt(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any]
         encoding = "latin-1"
 
     # Check for ASCII Form Feed page delimiter
-    if "\x0c" in raw_text:
+    has_form_feed = "\x0c" in raw_text
+    if has_form_feed:
         raw_pages = raw_text.split("\x0c")
     else:
         # Clean first
@@ -174,13 +186,16 @@ def extract_from_txt(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any]
                 page_number=idx,
                 text=cleaned,
                 char_count=len(cleaned),
-                word_count=words
+                word_count=words,
+                is_approximate=not has_form_feed,
+                boundary_type="form_feed" if has_form_feed else "approximate_chunk",
             )
         )
 
     metadata: Dict[str, Any] = {
         "format": "TXT",
-        "encoding": encoding
+        "encoding": encoding,
+        "has_form_feed_delimiters": has_form_feed,
     }
 
     return extracted_pages, metadata
@@ -207,6 +222,15 @@ def process_document(filename: str, file_type: str, content: bytes) -> DocumentE
 
     meta["processed_at"] = datetime.now(timezone.utc).isoformat()
 
+    # Identify whether this is sample / demo document
+    name_lower = filename.lower()
+    is_sample = (
+        "sample" in name_lower
+        or "quarterly_executive_summary" in name_lower
+        or "comprehensive_ml_research_report" in name_lower
+        or meta.get("is_sample", False)
+    )
+
     return DocumentExtractionResponse(
         success=True,
         filename=filename,
@@ -219,5 +243,6 @@ def process_document(filename: str, file_type: str, content: bytes) -> DocumentE
         preview_text=preview,
         extracted_pages=pages,
         metadata=meta,
+        is_sample=is_sample,
         message=f"Successfully extracted {len(pages)} page(s) and {total_words} word(s)."
     )
