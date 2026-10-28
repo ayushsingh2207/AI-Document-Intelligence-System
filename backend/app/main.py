@@ -6,12 +6,17 @@ from fastapi.exceptions import RequestValidationError
 from app.config import settings
 from app.routers import health_router, documents_router, search_router
 
+docs_url = "/docs" if settings.ENABLE_DOCS else None
+redoc_url = "/redoc" if settings.ENABLE_DOCS else None
+openapi_url = "/openapi.json" if settings.ENABLE_DOCS else None
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Phase 1: Ingestion, Validation & Text Extraction Engine for AI Document Intelligence",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    description="Phase 2: Semantic Chunking, Dense Vector Embeddings & Indexing Engine",
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url,
 )
 
 # CORS configuration
@@ -52,12 +57,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Global unhandled exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    detail = str(exc) if settings.ENVIRONMENT == "development" else "An unexpected internal server error occurred."
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
             "error": "Internal server error",
-            "detail": str(exc)
+            "detail": detail
         }
     )
 
@@ -74,7 +80,7 @@ async def root():
         "phase": "Phase 2 - Semantic Chunking, Local Vector Embeddings & Indexing",
         "embedding_model": "sentence-transformers/all-MiniLM-L6-v2 (384-d)",
         "vector_index": "FAISS IndexFlatIP (Cosine Similarity)",
-        "docs_url": "/docs",
+        "docs_url": "/docs" if settings.ENABLE_DOCS else None,
         "health_url": "/health"
     }
 

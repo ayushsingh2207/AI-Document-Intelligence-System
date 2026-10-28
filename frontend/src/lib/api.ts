@@ -78,8 +78,11 @@ export interface SearchResponse {
   query: string;
   total_results: number;
   results: SearchResult[];
-  latency_ms: number;
-  model_name: string;
+  latency_ms?: number;
+  search_time_ms?: number;
+  model_name?: string;
+  model?: string;
+  message?: string;
 }
 
 export interface DocumentSummary {
@@ -88,17 +91,21 @@ export interface DocumentSummary {
   file_type: string;
   total_chunks: number;
   total_pages: number;
-  indexed_at: string;
+  indexed_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface IndexStatsResponse {
+  total_documents: number;
+  total_chunks: number;
   total_vectors: number;
   dimension: number;
-  is_trained: boolean;
-  total_indexed_documents: number;
-  documents: DocumentSummary[];
-  model_name: string;
-  device: string;
+  embedding_model: string;
+  model_license?: string;
+  index_type: string;
+  memory_usage_mb?: number;
+  status?: string;
 }
 
 const getApiBaseUrl = (): string => {

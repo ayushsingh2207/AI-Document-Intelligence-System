@@ -17,13 +17,12 @@ import {
   Sparkles,
   Layers,
   ShieldCheck,
-  Zap,
   Clock,
   ArrowRight,
   Search,
   FileText,
-  Database,
-  Cpu,
+  BookmarkCheck,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function Home() {
@@ -35,6 +34,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"ingestion" | "search">("ingestion");
   const [indexStats, setIndexStats] = useState<IndexStatsResponse | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+  const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
 
   // Fetch backend health and index stats
   const fetchHealthAndStats = useCallback(async () => {
@@ -79,12 +79,12 @@ export default function Home() {
     setActiveTab("ingestion");
   };
 
-  // Aggregated statistics
+  // Aggregated session statistics
   const totalDocuments = sessionDocuments.length;
   const totalPages = sessionDocuments.reduce((acc, d) => acc + d.total_pages, 0);
   const totalWords = sessionDocuments.reduce((acc, d) => acc + d.total_words, 0);
   const maxSizeMb = backendHealth?.max_upload_size_mb || 15;
-  const totalVectors = indexStats?.total_vectors ?? 0;
+  const isHealthy = backendHealth?.status === "healthy";
 
   return (
     <div className="min-h-screen bg-slate-950 bg-grid-pattern relative flex flex-col">
@@ -97,35 +97,36 @@ export default function Home() {
         backendHealth={backendHealth}
         healthLoading={healthLoading}
         onRefreshHealth={fetchHealthAndStats}
+        showDiagnostics={showDiagnostics}
+        onToggleDiagnostics={() => setShowDiagnostics(!showDiagnostics)}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8 relative z-10">
-        {/* Hero Section */}
+        {/* User-Focused Hero Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-950/80 border border-indigo-800/80 text-indigo-300">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Phase 2: Semantic Chunking & Local Vector Search</span>
+              <span>Document Processing &amp; Semantic Retrieval System</span>
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
               AI Document <span className="bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">Intelligence</span>
             </h1>
             <p className="text-sm sm:text-base text-slate-400 max-w-2xl leading-relaxed">
-              Industrial document parsing, semantic paragraph chunking, and local vector indexing.
-              Powered by <span className="text-zinc-200 font-medium">all-MiniLM-L6-v2</span> and <span className="text-zinc-200 font-medium">FAISS</span> for exact cosine similarity search over preserved page offsets.
+              Upload documents, extract text with verified page boundaries, and perform instant natural language search across passages with exact page citations.
             </p>
           </div>
 
-          {/* Architecture Badges */}
+          {/* User-Centric Value Highlights */}
           <div className="hidden lg:flex flex-col items-end gap-2 text-xs text-slate-400">
             <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3 py-1.5 rounded-xl">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>₹0-Cost Architecture • 100% Local Inference</span>
+              <BookmarkCheck className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Verified Page &amp; Character Citations</span>
             </div>
             <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3 py-1.5 rounded-xl">
-              <Cpu className="w-3.5 h-3.5 text-indigo-400" />
-              <span>all-MiniLM-L6-v2 (384-d) • FAISS FlatIP</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Private Local Inference • No Cloud Dependencies</span>
             </div>
           </div>
         </div>
@@ -144,14 +145,14 @@ export default function Home() {
             <button
               onClick={() => setActiveTab("ingestion")}
               id="tab-btn-ingestion"
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "ingestion"
                   ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/20"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/60"
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>Ingestion & Document Reader</span>
+              <span>Ingestion &amp; Document Reader</span>
               {sessionDocuments.length > 0 && (
                 <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800">
                   {sessionDocuments.length}
@@ -162,25 +163,35 @@ export default function Home() {
             <button
               onClick={() => setActiveTab("search")}
               id="tab-btn-search"
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "search"
                   ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/60"
               }`}
             >
               <Search className="w-4 h-4" />
-              <span>Semantic Search & Vector Index</span>
-              {totalVectors > 0 && (
+              <span>Semantic Search &amp; Citations</span>
+              {indexStats && indexStats.total_vectors > 0 && (
                 <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono">
-                  {totalVectors} vectors
+                  {indexStats.total_vectors} passages
                 </span>
               )}
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>FAISS CPU Index Online</span>
+          {/* Genuine Dynamic Status Pill - Reflects actual backend connection */}
+          <div className="hidden sm:flex items-center gap-2 text-xs">
+            {isHealthy ? (
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span>Search Engine Active</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-rose-400">
+                <span className="w-2 h-2 rounded-full bg-rose-400" />
+                <span>Backend Offline</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -195,7 +206,7 @@ export default function Home() {
                       Document Ingestion Portal
                     </h2>
                     <p className="text-xs text-slate-400">
-                      Upload a PDF, DOCX, or TXT file. The system will extract text, segment semantic chunks, and build local vector representations automatically.
+                      Upload a PDF, DOCX, or TXT file to extract text, segment passages, and make contents instantly searchable.
                     </p>
                   </div>
                 </div>
@@ -213,12 +224,12 @@ export default function Home() {
               />
             )}
 
-            {/* Recent Session History */}
+            {/* Recent Uploads in Session */}
             {sessionDocuments.length > 1 && !activeDocument && (
               <div className="rounded-3xl bg-slate-900/50 border border-slate-800/80 p-6">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-4">
                   <Clock className="w-4 h-4 text-cyan-400" />
-                  <span>Recent Uploads in this Session ({sessionDocuments.length})</span>
+                  <span>Recent Documents in this Session ({sessionDocuments.length})</span>
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {sessionDocuments.map((doc, idx) => (
@@ -240,7 +251,7 @@ export default function Home() {
                       </div>
                       <div className="text-[11px] text-slate-400 flex items-center justify-between">
                         <span>
-                          {doc.total_pages} page(s) • {doc.total_chunks || 0} chunks
+                          {doc.total_pages} page(s) • {doc.total_chunks || 0} passages
                         </span>
                         <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
                       </div>
@@ -252,72 +263,81 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tab 2: Semantic Search & Vector Index */}
+        {/* Tab 2: Semantic Search & Vector Citations */}
         {activeTab === "search" && (
           <div className="space-y-6">
             <SearchInterface
               onSelectDocumentPage={handleSelectDocumentPage}
               refreshTrigger={refreshTrigger}
+              showDiagnostics={showDiagnostics}
             />
           </div>
         )}
 
-        {/* Phase 1 & Phase 2 Architecture Capabilities Card */}
+        {/* System Capabilities & Roadmap (Clean distinction between active and planned features) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
+          {/* Active Capabilities */}
           <div className="rounded-3xl bg-slate-900/40 border border-slate-800/80 p-6 space-y-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/60 text-emerald-400">
-                <ShieldCheck className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-white">
-                Phase 1 Ingestion Pipeline
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Active Capabilities (Phases 1 &amp; 2)
+                </h3>
+                <span className="text-[10px] text-emerald-400 font-medium">Fully Operational</span>
+              </div>
             </div>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Magic-byte file validation for PDF, DOCX, and TXT
+            <ul className="space-y-2.5 text-xs text-slate-400">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 mt-0.5">✓</span>
+                <span><strong>Multi-Format Ingestion:</strong> Deep magic-byte validation for PDF, DOCX, and TXT with file-size protections.</span>
               </li>
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Exact page demarcations & approximate unpaginated windows
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 mt-0.5">✓</span>
+                <span><strong>Page Preservation:</strong> Preserves exact page demarcations for PDF/DOCX and clean character windows for TXT.</span>
               </li>
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Full extraction telemetry (character, word, page counts)
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 mt-0.5">✓</span>
+                <span><strong>Semantic Chunking:</strong> Intelligent paragraph and sentence segmentation with configurable overlap.</span>
               </li>
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Path traversal security & 15 MB file size guards
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 mt-0.5">✓</span>
+                <span><strong>Cosine Similarity Search:</strong> Exact vector similarity retrieval with ranked results and verified page citations.</span>
               </li>
             </ul>
           </div>
 
+          {/* Planned Roadmap */}
           <div className="rounded-3xl bg-slate-900/40 border border-slate-800/80 p-6 space-y-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-xl bg-indigo-950/60 border border-indigo-800/60 text-indigo-400">
                 <Layers className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-white">
-                Phase 2 Semantic Search & Indexing
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Planned Roadmap (Phase 3 &amp; Beyond)
+                </h3>
+                <span className="text-[10px] text-indigo-400 font-medium">Future Enhancements</span>
+              </div>
             </div>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Semantic-aware chunker with configurable size & overlap
+            <ul className="space-y-2.5 text-xs text-slate-400">
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-0.5">○</span>
+                <span><strong>Cross-Document Synthesis:</strong> Comparative analysis and multi-document theme aggregation.</span>
               </li>
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Local <span className="font-mono text-zinc-300">all-MiniLM-L6-v2</span> embedding engine (384 dimensions)
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-0.5">○</span>
+                <span><strong>Key-Value &amp; Entity Extraction:</strong> Automated extraction of contract clauses, names, dates, and amounts.</span>
               </li>
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Decoupled FAISS FlatIP index + metadata JSON store
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-0.5">○</span>
+                <span><strong>Generative QA Grounding:</strong> Natural language answer generation strictly cited to retrieved source passages.</span>
               </li>
-              <li className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
-                Cosine similarity retrieval with page & character offset tracking
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-0.5">○</span>
+                <span><strong>Hybrid Search:</strong> BM25 keyword matching fused with dense vector embeddings for technical vocabulary.</span>
               </li>
             </ul>
           </div>
@@ -333,7 +353,7 @@ export default function Home() {
             <span>•</span>
             <span>Next.js Frontend: :3000</span>
             <span>•</span>
-            <span className="text-cyan-400">Deployable on Vercel & Render/Railway</span>
+            <span className="text-cyan-400">Deployable on Vercel &amp; Render/Railway</span>
           </div>
         </div>
       </footer>

@@ -2,21 +2,26 @@
 
 import React from "react";
 import { HealthResponse } from "@/lib/api";
-import { ShieldCheck, Activity, RefreshCw, Cpu, ExternalLink } from "lucide-react";
+import { ShieldCheck, RefreshCw, Cpu, ExternalLink, Terminal } from "lucide-react";
 
 interface NavbarProps {
   backendHealth: HealthResponse | null;
   healthLoading: boolean;
   onRefreshHealth: () => void;
+  showDiagnostics?: boolean;
+  onToggleDiagnostics?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   backendHealth,
   healthLoading,
   onRefreshHealth,
+  showDiagnostics,
+  onToggleDiagnostics,
 }) => {
   const isHealthy = backendHealth?.status === "healthy";
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const isDev = backendHealth?.environment === "development";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
@@ -31,19 +36,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
                 AI Document Intelligence
               </span>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-400 border border-cyan-800/60">
-                Phase 1
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                v{backendHealth?.version || "1.0.0"}
               </span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">
-              Ingestion, Validation & Page-Preserved Extraction Engine
+              Intelligent Document Ingestion, Semantic Search & Source Page Citation Engine
             </p>
           </div>
         </div>
 
         {/* Right Controls */}
         <div className="flex items-center gap-3">
-          {/* Backend Status Pill */}
+          {/* Backend Status Pill - Reflects actual backend state */}
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
               healthLoading
@@ -77,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               {healthLoading
                 ? "Checking API..."
                 : isHealthy
-                ? `FastAPI Online (v${backendHealth?.version})`
-                : "Backend Offline"}
+                ? "System Online"
+                : "API Offline"}
             </span>
             <span className="sm:hidden">
               {isHealthy ? "Online" : "Offline"}
@@ -94,22 +99,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
-          {/* Swagger API Docs Link */}
-          <a
-            href={`${apiUrl}/docs`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden md:flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/50 transition-colors"
-          >
-            <span>FastAPI Docs</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
+          {/* Diagnostics Drawer Toggle (Cleanly separated from end-user workflow) */}
+          {onToggleDiagnostics && (
+            <button
+              onClick={onToggleDiagnostics}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                showDiagnostics
+                  ? "bg-indigo-600/20 text-indigo-300 border-indigo-500/50"
+                  : "bg-slate-900/60 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
+              }`}
+              title="Toggle system diagnostics and vector store metrics"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Diagnostics</span>
+            </button>
+          )}
 
-          {/* ₹0 Target Pill */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden lg:inline text-slate-300">₹0-Cost Open Stack</span>
-          </div>
+          {/* API Docs link: Only visible in local development environment */}
+          {isDev && (
+            <a
+              href={`${apiUrl}/docs`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/40 transition-colors"
+              title="FastAPI Swagger Documentation (Development only)"
+            >
+              <span>API Docs</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
         </div>
       </div>
     </header>

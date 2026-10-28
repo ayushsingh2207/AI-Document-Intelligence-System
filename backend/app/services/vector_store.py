@@ -26,10 +26,19 @@ class VectorStore:
     separate metadata storage for Document and Chunk records.
     Supports multi-document queries, updates, deletions, and duplicate handling.
     """
-    def __init__(self, dimension: int = 384):
+    def __init__(self, dimension: int = 384, data_dir: Optional[str] = None):
         self.dimension = dimension
         self._lock = threading.RLock()
         
+        # Configure persistence directory
+        if data_dir is not None:
+            self.data_dir = data_dir
+        else:
+            self.data_dir = DATA_DIR
+
+        self.index_file = os.path.join(self.data_dir, "vector_index.faiss") if self.data_dir else None
+        self.metadata_file = os.path.join(self.data_dir, "metadata_store.json") if self.data_dir else None
+
         # FAISS Index for Cosine Similarity (vectors are L2-normalized)
         self._index: faiss.IndexFlatIP = faiss.IndexFlatIP(self.dimension)
         
@@ -47,17 +56,21 @@ class VectorStore:
         self._next_vector_id = 0
 
         # Load persisted data if available
-        self._load_from_disk()
+        if self.data_dir:
+            self._load_from_disk()
 
     def _ensure_data_dir(self):
-        os.makedirs(DATA_DIR, exist_ok=True)
+        if self.data_dir:
+            os.makedirs(self.data_dir, exist_ok=True)
 
     def _save_to_disk(self):
         """Persist FAISS index and metadata store to disk."""
+        if not self.data_dir or not self.index_file or not self.metadata_file:
+            return
         try:
             self._ensure_data_dir()
             # Save FAISS index
-            faiss.write_index(self._index, INDEX_FILE)
+            faiss.write_index(self._index, self.index_file)
             
             # Save metadata
             meta_payload = {
@@ -67,7 +80,7 @@ class VectorStore:
                 "filename_to_doc_id": self._filename_to_doc_id,
                 "next_vector_id": self._next_vector_id,
             }
-            with open(METADATA_FILE, "w", encoding="utf-8") as f:
+            with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(meta_payload, f, indent=2)
             logger.info("Persisted vector store (%d vectors, %d docs)", self._index.ntotal, len(self._documents))
         except Exception as exc:
@@ -75,10 +88,12 @@ class VectorStore:
 
     def _load_from_disk(self):
         """Restore FAISS index and metadata store from disk if present."""
-        if os.path.exists(INDEX_FILE) and os.path.exists(METADATA_FILE):
+        if not self.data_dir or not self.index_file or not self.metadata_file:
+            return
+        if os.path.exists(self.index_file) and os.path.exists(self.metadata_file):
             try:
-                self._index = faiss.read_index(INDEX_FILE)
-                with open(METADATA_FILE, "r", encoding="utf-8") as f:
+                self._index = faiss.read_index(self.index_file)
+                with open(self.metadata_file, "r", encoding="utf-8") as f:
                     meta_payload = json.load(f)
                 
                 self._documents = {

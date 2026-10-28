@@ -26,12 +26,25 @@ class Settings:
         "application/octet-stream"
     }
 
+    # Documentation & Developer UI controls
+    # Default to enabling Swagger/ReDoc in development, but disable in production unless explicitly opted in
+    ENABLE_DOCS: bool = os.getenv(
+        "ENABLE_DOCS",
+        "true" if os.getenv("ENVIRONMENT", "development").lower() == "development" else "false"
+    ).lower() in ("true", "1", "yes")
+
     # CORS origins
     @property
     def cors_origins(self) -> List[str]:
         raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
         if not raw:
-            return ["*"]
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+            # If empty in development, allow local dev origin; never wildcard in production
+            return ["http://localhost:3000", "http://127.0.0.1:3000"] if self.ENVIRONMENT == "development" else []
+        origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+        # Disallow wildcard in production
+        if self.ENVIRONMENT == "production" and "*" in origins:
+            return [o for o in origins if o != "*"]
+        return origins
 
 settings = Settings()
+
