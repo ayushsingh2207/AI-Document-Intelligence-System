@@ -2,7 +2,7 @@
 
 import React from "react";
 import { HealthResponse } from "@/lib/api";
-import { ShieldCheck, RefreshCw, Cpu, ExternalLink, Terminal } from "lucide-react";
+import { ShieldCheck, RefreshCw, Cpu, Terminal } from "lucide-react";
 
 interface NavbarProps {
   backendHealth: HealthResponse | null;
@@ -115,19 +115,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* API Docs link: Only visible in local development environment */}
-          {isDev && (
-            <a
-              href={`${apiUrl}/docs`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden lg:flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/40 transition-colors"
-              title="FastAPI Swagger Documentation (Development only)"
-            >
-              <span>API Docs</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
         </div>
       </div>
     </header>

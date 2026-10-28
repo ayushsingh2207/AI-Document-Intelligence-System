@@ -126,7 +126,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3 py-1.5 rounded-xl">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Private Local Inference • No Cloud Dependencies</span>
+              <span>Self-Hosted Backend Inference (Local CPU in Dev) • No 3rd-Party AI APIs</span>
             </div>
           </div>
         </div>

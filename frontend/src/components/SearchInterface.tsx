@@ -457,7 +457,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   >
                     <span>Page {result.page_number}</span>
                     <span className="text-[10px] opacity-75">
-                      ({result.is_approximate ? "Approx" : "Verified"})
+                      ({result.is_approximate ? "Approximate Window" : "Exact Demarcation"})
                     </span>
                   </span>
 
@@ -578,7 +578,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               </div>
               <div>
                 <span className="text-zinc-500 block">License / Runtime:</span>
-                <span className="text-zinc-300">Apache-2.0 • CPU Local</span>
+                <span className="text-zinc-300">Apache-2.0 • Self-Hosted CPU</span>
               </div>
             </div>
           </div>
