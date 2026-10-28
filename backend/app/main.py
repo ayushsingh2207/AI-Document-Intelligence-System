@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from app.config import settings
-from app.routers import health_router, documents_router
+from app.routers import health_router, documents_router, search_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -63,6 +63,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include Routers
 app.include_router(health_router)
+app.include_router(search_router)
 app.include_router(documents_router)
 
 @app.get("/", tags=["Root"])
@@ -70,7 +71,9 @@ async def root():
     return {
         "message": "Welcome to AI Document Intelligence System API",
         "version": settings.VERSION,
-        "phase": "Phase 1 - Ingestion & Extraction",
+        "phase": "Phase 2 - Semantic Chunking, Local Vector Embeddings & Indexing",
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2 (384-d)",
+        "vector_index": "FAISS IndexFlatIP (Cosine Similarity)",
         "docs_url": "/docs",
         "health_url": "/health"
     }

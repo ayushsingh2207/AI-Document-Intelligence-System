@@ -27,8 +27,8 @@ backend/.env
 frontend/.env.local
 
 # OS / IDE
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
+# Generated Vector Index & Data
+backend/data/*.bin
+backend/data/*.json
+!backend/data/.gitkeep
+

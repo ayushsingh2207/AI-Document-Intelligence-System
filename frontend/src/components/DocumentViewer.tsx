@@ -22,16 +22,29 @@ import {
 interface DocumentViewerProps {
   document: DocumentExtractionResponse;
   onClear: () => void;
+  initialPageNumber?: number;
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   document,
   onClear,
+  initialPageNumber,
 }) => {
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [currentPageIndex, setCurrentPageIndex] = useState(() => {
+    if (initialPageNumber && initialPageNumber >= 1 && initialPageNumber <= document.extracted_pages.length) {
+      return initialPageNumber - 1;
+    }
+    return 0;
+  });
   const [activeTab, setActiveTab] = useState<"pages" | "full" | "json">("pages");
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  React.useEffect(() => {
+    if (initialPageNumber && initialPageNumber >= 1 && initialPageNumber <= document.extracted_pages.length) {
+      setCurrentPageIndex(initialPageNumber - 1);
+    }
+  }, [initialPageNumber, document]);
 
   const totalPages = document.extracted_pages.length;
   const currentPage = document.extracted_pages[currentPageIndex] || {

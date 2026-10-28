@@ -11,6 +11,7 @@ class DocumentPage(BaseModel):
 
 class DocumentExtractionResponse(BaseModel):
     success: bool = True
+    doc_id: Optional[str] = None
     filename: str
     file_type: str
     file_size_bytes: int
@@ -18,6 +19,7 @@ class DocumentExtractionResponse(BaseModel):
     total_pages: int
     total_characters: int
     total_words: int
+    total_chunks: int = 0
     preview_text: str
     extracted_pages: List[DocumentPage]
     metadata: Dict[str, Any] = Field(default_factory=dict)
