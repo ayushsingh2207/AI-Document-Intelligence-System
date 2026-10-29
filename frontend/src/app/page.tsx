@@ -6,12 +6,17 @@ import { MetricsCards } from "@/components/MetricsCards";
 import { FileUpload } from "@/components/FileUpload";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { SearchInterface } from "@/components/SearchInterface";
+import { ContractInterface } from "@/components/ContractInterface";
 import {
   checkBackendHealth,
   HealthResponse,
   DocumentExtractionResponse,
   getIndexStats,
   IndexStatsResponse,
+  listIndexedDocuments,
+  getDocumentChunks,
+  DocumentSummary,
+  Citation,
 } from "@/lib/api";
 import {
   Sparkles,
@@ -23,6 +28,7 @@ import {
   FileText,
   BookmarkCheck,
   CheckCircle2,
+  Scale,
 } from "lucide-react";
 
 export default function Home() {
@@ -30,22 +36,62 @@ export default function Home() {
   const [healthLoading, setHealthLoading] = useState<boolean>(true);
   const [activeDocument, setActiveDocument] = useState<DocumentExtractionResponse | null>(null);
   const [targetPageNumber, setTargetPageNumber] = useState<number | undefined>(undefined);
+  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [sessionDocuments, setSessionDocuments] = useState<DocumentExtractionResponse[]>([]);
-  const [activeTab, setActiveTab] = useState<"ingestion" | "search">("ingestion");
+  const [indexedDocs, setIndexedDocs] = useState<DocumentSummary[]>([]);
+  const [activeTab, setActiveTab] = useState<"ingestion" | "search" | "contract">("ingestion");
   const [indexStats, setIndexStats] = useState<IndexStatsResponse | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
 
-  // Fetch backend health and index stats
+  // Fetch backend health, index stats, and restore indexed documents
   const fetchHealthAndStats = useCallback(async () => {
     setHealthLoading(true);
     try {
-      const [health, stats] = await Promise.all([
+      const [health, stats, indexedDocs] = await Promise.all([
         checkBackendHealth().catch(() => null),
         getIndexStats().catch(() => null),
+        listIndexedDocuments().catch(() => []),
       ]);
       setBackendHealth(health);
       setIndexStats(stats);
+      setIndexedDocs(indexedDocs || []);
+
+      // Restore indexed document metadata so document list survives browser refresh
+      if (indexedDocs && indexedDocs.length > 0) {
+        setSessionDocuments((prevDocs) => {
+          const existingIds = new Set(prevDocs.map((d) => d.doc_id));
+          const restoredDocs: DocumentExtractionResponse[] = indexedDocs
+            .filter((idoc) => !existingIds.has(idoc.doc_id))
+            .map((idoc) => ({
+              success: true,
+              doc_id: idoc.doc_id,
+              filename: idoc.filename,
+              file_type: idoc.file_type,
+              file_size_bytes: 0,
+              file_size_formatted: `${idoc.total_chunks} passages`,
+              total_pages: Math.max(1, idoc.total_pages),
+              total_chunks: idoc.total_chunks,
+              total_characters: 0,
+              total_words: 0,
+              preview_text: "",
+              extracted_pages: Array.from({ length: Math.max(1, idoc.total_pages) }, (_, idx) => ({
+                page_number: idx + 1,
+                text: "",
+                char_count: 0,
+                word_count: 0,
+                is_approximate: false,
+                boundary_type: "persisted_index",
+              })),
+              metadata: {
+                processed_at: idoc.indexed_at || idoc.updated_at || idoc.created_at,
+                restored_from_index: true,
+              },
+              message: "Restored from persistent knowledge base.",
+            }));
+          return [...prevDocs, ...restoredDocs];
+        });
+      }
     } catch {
       setBackendHealth(null);
     } finally {
@@ -57,9 +103,58 @@ export default function Home() {
     fetchHealthAndStats();
   }, [fetchHealthAndStats, refreshTrigger]);
 
+  // Populate chunk text for restored documents on-demand
+  const ensureDocumentPages = async (doc: DocumentExtractionResponse): Promise<DocumentExtractionResponse> => {
+    const hasText = doc.extracted_pages.some((p) => p.text && p.text.trim().length > 0);
+    if (hasText || !doc.doc_id) {
+      return doc;
+    }
+
+    try {
+      const chunks = await getDocumentChunks(doc.doc_id);
+      if (chunks && chunks.length > 0) {
+        const pageMap = new Map<number, string[]>();
+        for (const chunk of chunks) {
+          const pNum = chunk.page_number || 1;
+          if (!pageMap.has(pNum)) {
+            pageMap.set(pNum, []);
+          }
+          pageMap.get(pNum)!.push(chunk.text);
+        }
+
+        const updatedPages = doc.extracted_pages.map((p) => {
+          const texts = pageMap.get(p.page_number) || [];
+          const fullText = texts.join("\n\n");
+          return {
+            ...p,
+            text: fullText,
+            char_count: fullText.length,
+            word_count: fullText.split(/\s+/).filter(Boolean).length,
+          };
+        });
+
+        const updatedDoc = {
+          ...doc,
+          extracted_pages: updatedPages,
+          total_words: updatedPages.reduce((acc, p) => acc + p.word_count, 0),
+          total_characters: updatedPages.reduce((acc, p) => acc + p.char_count, 0),
+        };
+
+        setSessionDocuments((prev) =>
+          prev.map((d) => (d.doc_id === doc.doc_id ? updatedDoc : d))
+        );
+        return updatedDoc;
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+    return doc;
+  };
+
   const handleUploadSuccess = (doc: DocumentExtractionResponse) => {
     setActiveDocument(doc);
     setTargetPageNumber(1);
+    setActiveCitation(null);
     setSessionDocuments((prev) => [doc, ...prev.filter((d) => d.filename !== doc.filename)]);
     setRefreshTrigger((prev) => prev + 1);
   };
@@ -67,15 +162,28 @@ export default function Home() {
   const handleClearActiveDocument = () => {
     setActiveDocument(null);
     setTargetPageNumber(undefined);
+    setActiveCitation(null);
   };
 
-  const handleSelectDocumentPage = (docId: string, pageNumber: number) => {
-    // Locate the document in session or active
+  const handleSelectDocumentPage = async (docId: string, pageNumber: number) => {
+    setActiveCitation(null);
     const foundDoc = sessionDocuments.find((d) => d.doc_id === docId);
     if (foundDoc) {
-      setActiveDocument(foundDoc);
+      const populatedDoc = await ensureDocumentPages(foundDoc);
+      setActiveDocument(populatedDoc);
     }
     setTargetPageNumber(pageNumber);
+    setActiveTab("ingestion");
+  };
+
+  const handleSelectCitation = async (citation: Citation) => {
+    setActiveCitation(citation);
+    const foundDoc = sessionDocuments.find((d) => d.doc_id === citation.doc_id);
+    if (foundDoc) {
+      const populatedDoc = await ensureDocumentPages(foundDoc);
+      setActiveDocument(populatedDoc);
+    }
+    setTargetPageNumber(citation.page_number);
     setActiveTab("ingestion");
   };
 
@@ -177,6 +285,22 @@ export default function Home() {
                 </span>
               )}
             </button>
+
+            <button
+              onClick={() => setActiveTab("contract")}
+              id="tab-btn-contract"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                activeTab === "contract"
+                  ? "bg-gradient-to-r from-amber-500 to-indigo-600 text-white shadow-lg shadow-amber-500/20"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              }`}
+            >
+              <Scale className="w-4 h-4" />
+              <span>Contract Intelligence</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950 text-amber-300 border border-amber-800 font-mono">
+                CUAD 41
+              </span>
+            </button>
           </div>
 
           {/* Genuine Dynamic Status Pill - Reflects actual backend connection */}
@@ -221,23 +345,27 @@ export default function Home() {
                 document={activeDocument}
                 onClear={handleClearActiveDocument}
                 initialPageNumber={targetPageNumber}
+                activeCitation={activeCitation}
+                onClearCitation={() => setActiveCitation(null)}
               />
             )}
 
-            {/* Recent Uploads in Session */}
-            {sessionDocuments.length > 1 && !activeDocument && (
+            {/* Restored / Recent Uploads in Knowledge Base */}
+            {sessionDocuments.length > 0 && !activeDocument && (
               <div className="rounded-3xl bg-slate-900/50 border border-slate-800/80 p-6">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-4">
                   <Clock className="w-4 h-4 text-cyan-400" />
-                  <span>Recent Documents in this Session ({sessionDocuments.length})</span>
+                  <span>Indexed Documents in Knowledge Base ({sessionDocuments.length})</span>
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {sessionDocuments.map((doc, idx) => (
                     <div
                       key={idx}
-                      onClick={() => {
-                        setActiveDocument(doc);
+                      onClick={async () => {
+                        const populated = await ensureDocumentPages(doc);
+                        setActiveDocument(populated);
                         setTargetPageNumber(1);
+                        setActiveCitation(null);
                       }}
                       className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900/80 transition-all cursor-pointer group"
                     >
@@ -268,8 +396,20 @@ export default function Home() {
           <div className="space-y-6">
             <SearchInterface
               onSelectDocumentPage={handleSelectDocumentPage}
+              onSelectCitation={handleSelectCitation}
               refreshTrigger={refreshTrigger}
               showDiagnostics={showDiagnostics}
+            />
+          </div>
+        )}
+
+        {/* Tab 3: Legal Contract Intelligence (CUAD 41 Categories) */}
+        {activeTab === "contract" && (
+          <div className="space-y-6">
+            <ContractInterface
+              indexedDocs={indexedDocs}
+              onSelectCitation={handleSelectCitation}
+              onSelectDocumentPage={handleSelectDocumentPage}
             />
           </div>
         )}

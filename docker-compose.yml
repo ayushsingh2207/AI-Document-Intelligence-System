@@ -1,0 +1,50 @@
+﻿# ==============================================================================
+# AI Document Intelligence System - Production Compose Definition
+# Phase 5.4 - Self-hosted / Local zero-cost container orchestration
+# ==============================================================================
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: doc-intelligence-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ENVIRONMENT=production
+      - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - MAX_UPLOAD_SIZE_MB=15
+      - ENABLE_DOCS=false
+    volumes:
+      - doc_intel_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: doc-intelligence-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  doc_intel_data:
+    name: doc_intelligence_persistent_data

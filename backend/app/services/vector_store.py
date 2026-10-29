@@ -13,10 +13,11 @@ from app.schemas.document import DocumentPage
 from app.services.chunker import chunk_document_pages
 from app.services.embedding_service import embedding_service
 from app.services.validator import format_file_size
+from app.services.bm25_store import bm25_store
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+DATA_DIR = os.getenv("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"))
 INDEX_FILE = os.path.join(DATA_DIR, "vector_index.faiss")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata_store.json")
 
@@ -26,7 +27,7 @@ class VectorStore:
     separate metadata storage for Document and Chunk records.
     Supports multi-document queries, updates, deletions, and duplicate handling.
     """
-    def __init__(self, dimension: int = 384, data_dir: Optional[str] = None):
+    def __init__(self, dimension: int = 384, data_dir: Optional[str] = None, bm25_store_instance: Optional[Any] = None):
         self.dimension = dimension
         self._lock = threading.RLock()
         
@@ -38,6 +39,15 @@ class VectorStore:
 
         self.index_file = os.path.join(self.data_dir, "vector_index.faiss") if self.data_dir else None
         self.metadata_file = os.path.join(self.data_dir, "metadata_store.json") if self.data_dir else None
+
+        # BM25 instance: isolated if custom data_dir provided or explicit instance passed
+        if bm25_store_instance is not None:
+            self.bm25 = bm25_store_instance
+        elif data_dir is not None and data_dir != DATA_DIR:
+            from app.services.bm25_store import BM25Store
+            self.bm25 = BM25Store(data_dir=self.data_dir)
+        else:
+            self.bm25 = bm25_store
 
         # FAISS Index for Cosine Similarity (vectors are L2-normalized)
         self._index: faiss.IndexFlatIP = faiss.IndexFlatIP(self.dimension)
@@ -195,6 +205,13 @@ class VectorStore:
             self._filename_to_doc_id[fn_key] = doc_id
             self._doc_to_vector_ids[doc_id] = vector_ids
 
+            # 5. Index chunks in the parallel BM25 lexical store
+            try:
+                chunk_ids_list = [c.chunk_id for c in chunks]
+                self.bm25.add_chunks(doc_id, chunk_ids_list, chunk_texts)
+            except Exception as bm25_exc:
+                logger.warning("BM25 indexing failed for doc %s (non-blocking): %s", doc_id, bm25_exc)
+
             self._save_to_disk()
             return doc_summary
 
@@ -218,6 +235,13 @@ class VectorStore:
 
             # Rebuild FAISS index from remaining chunks to eliminate deleted vectors completely
             self._rebuild_index_from_remaining_chunks()
+
+            # Remove from parallel BM25 index
+            try:
+                self.bm25.remove_document(doc_id)
+            except Exception as bm25_exc:
+                logger.warning("BM25 cleanup failed for doc %s (non-blocking): %s", doc_id, bm25_exc)
+
             self._save_to_disk()
             return True
 
@@ -384,9 +408,13 @@ class VectorStore:
             self._doc_to_vector_ids.clear()
             self._filename_to_doc_id.clear()
             self._next_vector_id = 0
-            if os.path.exists(INDEX_FILE):
-                os.remove(INDEX_FILE)
-            if os.path.exists(METADATA_FILE):
-                os.remove(METADATA_FILE)
+            if self.index_file and os.path.exists(self.index_file):
+                os.remove(self.index_file)
+            if self.metadata_file and os.path.exists(self.metadata_file):
+                os.remove(self.metadata_file)
+            try:
+                self.bm25.clear_all()
+            except Exception:
+                pass
 
 vector_store = VectorStore(dimension=384)

@@ -1,4 +1,4 @@
-export interface DocumentPage {
+﻿export interface DocumentPage {
   page_number: number;
   text: string;
   char_count: number;
@@ -82,6 +82,7 @@ export interface SearchResponse {
   search_time_ms?: number;
   model_name?: string;
   model?: string;
+  retrieval_strategy?: string;
   message?: string;
 }
 
@@ -107,6 +108,83 @@ export interface IndexStatsResponse {
   memory_usage_mb?: number;
   status?: string;
 }
+
+export interface BM25StatsResponse {
+  total_entries: number;
+  unique_documents: number;
+  avg_document_length_tokens: number;
+  algorithm: string;
+  license: string;
+}
+
+export type RetrievalStrategy = "dense" | "bm25" | "hybrid";
+
+export interface Citation {
+  citation_id: string;
+  doc_id: string;
+  filename: string;
+  page_number: number;
+  chunk_id: string;
+  start_char: number;
+  end_char: number;
+  supporting_excerpt: string;
+  boundary_type: string;
+  is_approximate: boolean;
+  relevance_score: number;
+}
+
+export interface QARequest {
+  question: string;
+  doc_id?: string | null;
+  top_k?: number;
+  confidence_threshold?: number;
+}
+
+export interface QAResponse {
+  question: string;
+  answered: boolean;
+  answer: string;
+  confidence: number;
+  abstention_reason?: string | null;
+  citations: Citation[];
+  retrieval_strategy: string;
+  latency_ms: number;
+}
+
+export interface ClauseSpan {
+  category: string;
+  detected: boolean;
+  extracted_text?: string | null;
+  doc_id: string;
+  filename: string;
+  page_number?: number | null;
+  start_char?: number | null;
+  end_char?: number | null;
+  is_approximate: boolean;
+  boundary_type?: string | null;
+  confidence_score: number;
+  detection_status: "detected" | "not_detected";
+  explanation: string;
+}
+
+export interface ContractAnalysisRequest {
+  confidence_threshold?: number;
+  categories?: string[];
+}
+
+export interface ContractAnalysisResponse {
+  doc_id: string;
+  filename: string;
+  total_pages: number;
+  total_chunks_scanned: number;
+  categories_analyzed: number;
+  clauses_detected_count: number;
+  clauses_not_detected_count: number;
+  disclaimer: string;
+  results: ClauseSpan[];
+  latency_ms: number;
+}
+
 
 const getApiBaseUrl = (): string => {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -194,7 +272,8 @@ export async function searchDocuments(
   query: string,
   topK: number = 5,
   docId?: string,
-  minScore: number = 0.0
+  minScore: number = 0.0,
+  strategy: RetrievalStrategy = "hybrid"
 ): Promise<SearchResponse> {
   const baseUrl = getApiBaseUrl();
   try {
@@ -208,6 +287,7 @@ export async function searchDocuments(
         top_k: topK,
         doc_id: docId || null,
         min_score: minScore,
+        strategy,
       }),
     });
 
@@ -274,4 +354,99 @@ export async function deleteIndexedDocument(docId: string): Promise<{ success: b
     throw new Error(data.detail || `Failed to delete document: status ${response.status}`);
   }
   return response.json();
+}
+
+export async function getBM25Stats(): Promise<BM25StatsResponse> {
+  const baseUrl = getApiBaseUrl();
+  const response = await fetch(`${baseUrl}/api/documents/index/bm25-stats`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch BM25 stats: status ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function askQuestion(request: QARequest): Promise<QAResponse> {
+  const baseUrl = getApiBaseUrl();
+  try {
+    const response = await fetch(`${baseUrl}/api/documents/qa`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        question: request.question,
+        doc_id: request.doc_id || null,
+        top_k: request.top_k ?? 5,
+        confidence_threshold: request.confidence_threshold ?? 0.45,
+      }),
+    });
+
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(`Q&A request failed: server returned status ${response.status} with non-JSON response.`);
+    }
+
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || `Q&A request failed with status ${response.status}`);
+    }
+
+    return data;
+  } catch (err: any) {
+    if (err.name === "TypeError" && err.message.toLowerCase().includes("fetch")) {
+      throw new Error(`Backend offline: Unable to connect to ${baseUrl}/api/documents/qa`);
+    }
+    throw err;
+  }
+}
+
+export async function getContractCategories(): Promise<string[]> {
+  const baseUrl = getApiBaseUrl();
+  const response = await fetch(`${baseUrl}/api/documents/contract/categories`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch contract categories: status ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function analyzeContract(
+  docId: string,
+  options?: ContractAnalysisRequest
+): Promise<ContractAnalysisResponse> {
+  const baseUrl = getApiBaseUrl();
+  try {
+    const response = await fetch(`${baseUrl}/api/documents/${docId}/contract-analysis`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        confidence_threshold: options?.confidence_threshold ?? 3.0,
+        categories: options?.categories || null,
+      }),
+    });
+
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(`Contract analysis failed: server returned status ${response.status} with non-JSON response.`);
+    }
+
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || `Contract analysis failed with status ${response.status}`);
+    }
+
+    return data;
+  } catch (err: any) {
+    if (err.name === "TypeError" && err.message.toLowerCase().includes("fetch")) {
+      throw new Error(`Backend offline: Unable to connect to ${baseUrl}/api/documents/${docId}/contract-analysis`);
+    }
+    throw err;
+  }
 }

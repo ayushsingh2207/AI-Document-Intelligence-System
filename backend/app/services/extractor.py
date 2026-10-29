@@ -44,20 +44,25 @@ def extract_from_pdf(content: bytes) -> Tuple[List[DocumentPage], Dict[str, Any]
         )
 
     # Extract metadata safely
-    raw_meta = reader.metadata or {}
+    raw_meta = reader.metadata
     metadata: Dict[str, Any] = {
         "format": "PDF",
         "total_pdf_pages": total_pdf_pages,
         "is_encrypted": reader.is_encrypted,
     }
-    if raw_meta.title:
-        metadata["title"] = str(raw_meta.title)
-    if raw_meta.author:
-        metadata["author"] = str(raw_meta.author)
-    if raw_meta.creator:
-        metadata["creator"] = str(raw_meta.creator)
-    if raw_meta.producer:
-        metadata["producer"] = str(raw_meta.producer)
+    if raw_meta is not None:
+        title = getattr(raw_meta, "title", None) or (raw_meta.get("/Title") if hasattr(raw_meta, "get") else None)
+        if title:
+            metadata["title"] = str(title)
+        author = getattr(raw_meta, "author", None) or (raw_meta.get("/Author") if hasattr(raw_meta, "get") else None)
+        if author:
+            metadata["author"] = str(author)
+        creator = getattr(raw_meta, "creator", None) or (raw_meta.get("/Creator") if hasattr(raw_meta, "get") else None)
+        if creator:
+            metadata["creator"] = str(creator)
+        producer = getattr(raw_meta, "producer", None) or (raw_meta.get("/Producer") if hasattr(raw_meta, "get") else None)
+        if producer:
+            metadata["producer"] = str(producer)
 
     return extracted_pages, metadata
 

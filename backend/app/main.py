@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from app.config import settings
-from app.routers import health_router, documents_router, search_router
+from app.routers import health_router, documents_router, search_router, qa_router, contract_router
 
 docs_url = "/docs" if settings.ENABLE_DOCS else None
 redoc_url = "/redoc" if settings.ENABLE_DOCS else None
@@ -13,7 +13,7 @@ openapi_url = "/openapi.json" if settings.ENABLE_DOCS else None
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Phase 2: Semantic Chunking, Dense Vector Embeddings & Indexing Engine",
+    description="Phase 5.3: Grounded Q&A and Experimental CUAD Contract Intelligence",
     docs_url=docs_url,
     redoc_url=redoc_url,
     openapi_url=openapi_url,
@@ -70,6 +70,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Include Routers
 app.include_router(health_router)
 app.include_router(search_router)
+app.include_router(qa_router)
+app.include_router(contract_router)
 app.include_router(documents_router)
 
 @app.get("/", tags=["Root"])
@@ -77,9 +79,12 @@ async def root():
     return {
         "message": "Welcome to AI Document Intelligence System API",
         "version": settings.VERSION,
-        "phase": "Phase 2 - Semantic Chunking, Local Vector Embeddings & Indexing",
+        "phase": "Phase 5.1 - Grounded Q&A & Evidence-Backed Document Intelligence",
         "embedding_model": "sentence-transformers/all-MiniLM-L6-v2 (384-d)",
         "vector_index": "FAISS IndexFlatIP (Cosine Similarity)",
+        "lexical_index": "BM25Okapi (rank_bm25)",
+        "fusion_method": "Reciprocal Rank Fusion (RRF)",
+        "qa_engine": "Extractive Evidence-Grounding with Conservative Abstention",
         "docs_url": "/docs" if settings.ENABLE_DOCS else None,
         "health_url": "/health"
     }

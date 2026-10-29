@@ -1,0 +1,28 @@
+﻿# Byte-compiled / optimized files
+__pycache__/
+*/**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+scratch/
+
+# Local datasets and model checkpoints (prevent bloat in images)
+data/cuad/
+checkpoints/
+data/*.faiss
+data/*.json
+data/*.bin
+
+# Secrets and environment files
+.env
+.env.*

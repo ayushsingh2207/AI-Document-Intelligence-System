@@ -16,6 +16,8 @@ test("Frontend architectural smoke test: required files exist", () => {
     "src/components/MetricsCards.tsx",
     "src/components/FileUpload.tsx",
     "src/components/DocumentViewer.tsx",
+    "src/components/SearchInterface.tsx",
+    "src/components/ContractInterface.tsx",
     "src/lib/api.ts",
     ".env.example",
     "package.json",
@@ -43,6 +45,18 @@ test("Frontend API client exports required interfaces and methods", () => {
   assert.match(content, /export async function uploadDocument/);
   assert.match(content, /is_approximate/);
   assert.match(content, /boundary_type/);
+  assert.match(content, /RetrievalStrategy/);
+  assert.match(content, /getBM25Stats/);
+  assert.match(content, /BM25StatsResponse/);
+  assert.match(content, /export interface Citation/);
+  assert.match(content, /export interface QARequest/);
+  assert.match(content, /export interface QAResponse/);
+  assert.match(content, /export async function askQuestion/);
+  assert.match(content, /export interface ClauseSpan/);
+  assert.match(content, /export interface ContractAnalysisRequest/);
+  assert.match(content, /export interface ContractAnalysisResponse/);
+  assert.match(content, /export async function analyzeContract/);
+  assert.match(content, /export async function getContractCategories/);
 });
 
 test("Frontend environment example contains NEXT_PUBLIC_API_URL", () => {

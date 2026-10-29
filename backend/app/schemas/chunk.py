@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field
 
 class ChunkRecord(BaseModel):
@@ -35,6 +35,10 @@ class SearchQuery(BaseModel):
     top_k: int = Field(default=5, ge=1, le=50, description="Maximum number of ranked results to return")
     doc_id: Optional[str] = Field(default=None, description="Optional document ID to scope the search")
     min_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Minimum cosine similarity threshold (0.0 to 1.0)")
+    strategy: Literal["dense", "bm25", "hybrid"] = Field(
+        default="hybrid",
+        description="Retrieval strategy: 'dense' (FAISS only), 'bm25' (lexical only), or 'hybrid' (RRF fusion)"
+    )
 
 class SearchResult(BaseModel):
     chunk_id: str
@@ -59,6 +63,7 @@ class SearchResponse(BaseModel):
     latency_ms: float = 0.0
     model: str
     model_name: str = ""
+    retrieval_strategy: str = "dense"
     message: str = "Search completed successfully"
 
 class IndexStatsResponse(BaseModel):
@@ -71,3 +76,10 @@ class IndexStatsResponse(BaseModel):
     index_type: str
     memory_usage_mb: float
     status: str
+
+class BM25StatsResponse(BaseModel):
+    total_entries: int
+    unique_documents: int
+    avg_document_length_tokens: float
+    algorithm: str
+    license: str

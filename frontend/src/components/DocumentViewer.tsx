@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { DocumentExtractionResponse } from "@/lib/api";
+import { DocumentExtractionResponse, Citation } from "@/lib/api";
 import {
   FileText,
   Layers,
@@ -17,20 +17,29 @@ import {
   BookOpen,
   Trash2,
   FileCheck2,
+  BookmarkCheck,
+  X,
 } from "lucide-react";
 
 interface DocumentViewerProps {
   document: DocumentExtractionResponse;
   onClear: () => void;
   initialPageNumber?: number;
+  activeCitation?: Citation | null;
+  onClearCitation?: () => void;
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   document,
   onClear,
   initialPageNumber,
+  activeCitation,
+  onClearCitation,
 }) => {
   const [currentPageIndex, setCurrentPageIndex] = useState(() => {
+    if (activeCitation && activeCitation.page_number >= 1 && activeCitation.page_number <= document.extracted_pages.length) {
+      return activeCitation.page_number - 1;
+    }
     if (initialPageNumber && initialPageNumber >= 1 && initialPageNumber <= document.extracted_pages.length) {
       return initialPageNumber - 1;
     }
@@ -41,10 +50,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
 
   React.useEffect(() => {
-    if (initialPageNumber && initialPageNumber >= 1 && initialPageNumber <= document.extracted_pages.length) {
+    if (activeCitation && activeCitation.page_number >= 1 && activeCitation.page_number <= document.extracted_pages.length) {
+      setCurrentPageIndex(activeCitation.page_number - 1);
+    } else if (initialPageNumber && initialPageNumber >= 1 && initialPageNumber <= document.extracted_pages.length) {
       setCurrentPageIndex(initialPageNumber - 1);
     }
-  }, [initialPageNumber, document]);
+  }, [initialPageNumber, activeCitation, document]);
 
   const totalPages = document.extracted_pages.length;
   const currentPage = document.extracted_pages[currentPageIndex] || {
@@ -86,6 +97,69 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
         part
       )
     );
+  };
+
+  const renderPageText = (text: string) => {
+    if (!text) {
+      return (
+        <div className="text-center py-12 text-slate-500 font-sans">
+          <p className="text-sm font-semibold">Blank Page / No Text Detected</p>
+          <p className="text-xs mt-1">This page might contain images or vector diagrams without embedded text.</p>
+        </div>
+      );
+    }
+
+    // Check if activeCitation applies to this page
+    if (activeCitation && activeCitation.page_number === currentPage.page_number) {
+      const excerpt = activeCitation.supporting_excerpt.trim();
+      const start = activeCitation.start_char;
+      const end = activeCitation.end_char;
+
+      // 1. Verify exact character-offset semantics
+      // Check whether slice matches the excerpt
+      if (
+        start >= 0 &&
+        end <= text.length &&
+        start < end &&
+        text.slice(start, end).trim() === excerpt
+      ) {
+        const before = text.slice(0, start);
+        const highlighted = text.slice(start, end);
+        const after = text.slice(end);
+        return (
+          <>
+            {searchQuery ? highlightMatches(before, searchQuery) : before}
+            <mark className="bg-amber-400 text-slate-950 px-1 py-0.5 rounded font-semibold ring-2 ring-amber-300 shadow-md">
+              {highlighted}
+            </mark>
+            {searchQuery ? highlightMatches(after, searchQuery) : after}
+          </>
+        );
+      }
+
+      // 2. Substring fallback if exact offset shifted due to whitespace or normalization
+      const subIdx = text.indexOf(excerpt);
+      if (subIdx !== -1) {
+        const before = text.slice(0, subIdx);
+        const highlighted = text.slice(subIdx, subIdx + excerpt.length);
+        const after = text.slice(subIdx + excerpt.length);
+        return (
+          <>
+            {searchQuery ? highlightMatches(before, searchQuery) : before}
+            <mark className="bg-amber-400 text-slate-950 px-1 py-0.5 rounded font-semibold ring-2 ring-amber-300 shadow-md">
+              {highlighted}
+            </mark>
+            {searchQuery ? highlightMatches(after, searchQuery) : after}
+          </>
+        );
+      }
+
+      // 3. Fallback: If exact highlight cannot be represented reliably, navigate to the correct page
+      // and show the supporting excerpt (in the banner above) instead of highlighting the wrong text.
+      return searchQuery ? highlightMatches(text, searchQuery) : text;
+    }
+
+    return searchQuery ? highlightMatches(text, searchQuery) : text;
   };
 
   return (
@@ -300,17 +374,49 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             </div>
           </div>
 
+          {/* Active Citation Notification Banner */}
+          {activeCitation && activeCitation.page_number === currentPage.page_number && (
+            <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-indigo-950/90 via-purple-950/80 to-slate-900 border border-indigo-500/40 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 font-mono text-xs font-bold border border-indigo-500/40 flex items-center justify-center">
+                  <BookmarkCheck className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-white tracking-wide">
+                      Supporting Evidence ({activeCitation.citation_id})
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-mono">
+                      Page {activeCitation.page_number} • Chars {activeCitation.start_char}–{activeCitation.end_char}
+                    </span>
+                    {activeCitation.relevance_score !== undefined && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono">
+                        {(activeCitation.relevance_score * 100).toFixed(0)}% Evidence Score
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-indigo-200/90 mt-1.5 italic font-sans bg-indigo-950/40 p-2.5 rounded-lg border border-indigo-800/40">
+                    &ldquo;{activeCitation.supporting_excerpt}&rdquo;
+                  </p>
+                </div>
+              </div>
+              {onClearCitation && (
+                <button
+                  onClick={onClearCitation}
+                  className="self-end sm:self-center px-2.5 py-1 text-xs text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Dismiss citation highlight"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Dismiss</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Page Text Viewer */}
           <div className="mt-6">
             <div className="p-6 rounded-2xl bg-slate-950/80 border border-slate-800/80 font-mono text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-wrap selection:bg-cyan-500/30 max-h-[600px] overflow-y-auto">
-              {currentPage.text ? (
-                highlightMatches(currentPage.text, searchQuery)
-              ) : (
-                <div className="text-center py-12 text-slate-500 font-sans">
-                  <p className="text-sm font-semibold">Blank Page / No Text Detected</p>
-                  <p className="text-xs mt-1">This page might contain images or vector diagrams without embedded text.</p>
-                </div>
-              )}
+              {renderPageText(currentPage.text)}
             </div>
           </div>
         </div>
