@@ -193,6 +193,7 @@ export default function Home() {
   const totalWords = sessionDocuments.reduce((acc, d) => acc + d.total_words, 0);
   const maxSizeMb = backendHealth?.max_upload_size_mb || 15;
   const isHealthy = backendHealth?.status === "healthy";
+  const isDemoMode = backendHealth?.demo_mode || process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   return (
     <div className="min-h-screen bg-slate-950 bg-grid-pattern relative flex flex-col">
@@ -211,6 +212,26 @@ export default function Home() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8 relative z-10">
+        {/* Public Demo Mode Disclaimer */}
+        {isDemoMode && (
+          <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs sm:text-sm shadow-lg shadow-amber-950/20">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <p className="font-semibold text-amber-100">
+                  Academic demonstration. Do not upload confidential or personal information.
+                </p>
+                <p className="text-xs text-amber-300/80 mt-0.5">
+                  Public demo mode active: Uploads and document deletions are disabled to safeguard system integrity. You can freely search, ask grounded questions, inspect verifiable citations, and evaluate CUAD clauses across the pre-loaded academic demo corpus.
+                </p>
+              </div>
+            </div>
+            <span className="hidden sm:inline-block px-2.5 py-1 rounded-md text-xs font-mono font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+              Demo Mode
+            </span>
+          </div>
+        )}
+
         {/* User-Focused Hero Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
           <div className="space-y-3">
@@ -338,6 +359,7 @@ export default function Home() {
                 <FileUpload
                   onUploadSuccess={handleUploadSuccess}
                   maxSizeMb={maxSizeMb}
+                  isDemoMode={isDemoMode}
                 />
               </div>
             ) : (
@@ -399,6 +421,7 @@ export default function Home() {
               onSelectCitation={handleSelectCitation}
               refreshTrigger={refreshTrigger}
               showDiagnostics={showDiagnostics}
+              isDemoMode={isDemoMode}
             />
           </div>
         )}

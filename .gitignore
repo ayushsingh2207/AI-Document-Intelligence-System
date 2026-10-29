@@ -31,6 +31,7 @@ frontend/.env.local
 backend/data/*.bin
 backend/data/*.json
 backend/data/*.faiss
+backend/data/demo/
 !backend/data/.gitkeep
 
 # Scratch & temporary artifacts

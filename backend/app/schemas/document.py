@@ -40,3 +40,5 @@ class HealthResponse(BaseModel):
     environment: str
     max_upload_size_mb: int
     supported_formats: List[str]
+    demo_mode: bool = False
+    rate_limit_enabled: bool = True

@@ -3,7 +3,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from slowapi.errors import RateLimitExceeded
+
 from app.config import settings
+from app.services.limiter import limiter
+from app.services.vector_store import vector_store
+from app.services.demo_corpus import ensure_demo_corpus_indexed
 from app.routers import health_router, documents_router, search_router, qa_router, contract_router
 
 docs_url = "/docs" if settings.ENABLE_DOCS else None
@@ -13,11 +18,22 @@ openapi_url = "/openapi.json" if settings.ENABLE_DOCS else None
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Phase 5.3: Grounded Q&A and Experimental CUAD Contract Intelligence",
+    description="Phase 6.4: Grounded Q&A, CUAD Contract Intelligence, and Hardened Public Demo Mode",
     docs_url=docs_url,
     redoc_url=redoc_url,
     openapi_url=openapi_url,
 )
+
+# Attach SlowAPI Rate Limiter
+app.state.limiter = limiter
+
+# Startup event: configuration validation & demo corpus indexing
+@app.on_event("startup")
+async def startup_event():
+    if settings.ENVIRONMENT == "production":
+        settings.validate_production_configuration()
+    if settings.DEMO_MODE:
+        ensure_demo_corpus_indexed(vector_store)
 
 # CORS configuration
 is_wildcard = settings.cors_origins == ["*"]
@@ -41,6 +57,19 @@ async def add_process_time_and_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
+
+# Rate limit exceeded handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "error": "Rate limit exceeded",
+            "detail": f"Rate limit exceeded: {exc.detail}. Please slow down your requests."
+        },
+        headers={"Retry-After": "60"}
+    )
 
 # Validation error handling
 @app.exception_handler(RequestValidationError)
@@ -79,7 +108,9 @@ async def root():
     return {
         "message": "Welcome to AI Document Intelligence System API",
         "version": settings.VERSION,
-        "phase": "Phase 5.1 - Grounded Q&A & Evidence-Backed Document Intelligence",
+        "phase": "Phase 6.4 - Grounded Q&A, CUAD Intelligence, and Hardened Public Demo Mode",
+        "demo_mode": settings.DEMO_MODE,
+        "rate_limiting_enabled": settings.RATE_LIMIT_ENABLED,
         "embedding_model": "sentence-transformers/all-MiniLM-L6-v2 (384-d)",
         "vector_index": "FAISS IndexFlatIP (Cosine Similarity)",
         "lexical_index": "BM25Okapi (rank_bm25)",

@@ -1,4 +1,4 @@
-﻿export interface DocumentPage {
+export interface DocumentPage {
   page_number: number;
   text: string;
   char_count: number;
@@ -32,6 +32,8 @@ export interface HealthResponse {
   environment: string;
   max_upload_size_mb: number;
   supported_formats: string[];
+  demo_mode?: boolean;
+  rate_limit_enabled?: boolean;
 }
 
 export interface ValidationResult {

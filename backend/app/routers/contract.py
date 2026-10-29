@@ -1,6 +1,8 @@
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, status, Path, Body
+from fastapi import APIRouter, HTTPException, status, Path, Body, Request
+from app.config import settings
+from app.services.limiter import limiter
 from app.services.vector_store import vector_store
 from app.services.contract_analyzer import ContractAnalyzerService
 from app.schemas.contract import (
@@ -24,9 +26,11 @@ async def get_contract_categories():
 
 
 @router.post("/{doc_id}/contract-analysis", response_model=ContractAnalysisResponse)
+@limiter.limit(settings.RATE_LIMIT_CONTRACT)
 async def analyze_document_contract(
+    request: Request,
     doc_id: str = Path(..., min_length=1, description="Identifier of the already-uploaded document to analyze"),
-    request: Optional[ContractAnalysisRequest] = Body(default_factory=ContractAnalysisRequest),
+    body: Optional[ContractAnalysisRequest] = Body(default_factory=ContractAnalysisRequest),
 ):
     """
     Analyze an explicitly selected uploaded document for 41 CUAD legal clause categories.
@@ -47,7 +51,7 @@ async def analyze_document_contract(
             detail="Document ID cannot be empty or contain only whitespace.",
         )
 
-    req = request or ContractAnalysisRequest()
+    req = body or ContractAnalysisRequest()
 
     try:
         response = _contract_analyzer.analyze_document(

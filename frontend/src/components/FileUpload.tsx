@@ -7,11 +7,13 @@ import { uploadDocument, DocumentExtractionResponse } from "@/lib/api";
 interface FileUploadProps {
   onUploadSuccess: (data: DocumentExtractionResponse) => void;
   maxSizeMb: number;
+  isDemoMode?: boolean;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({
   onUploadSuccess,
   maxSizeMb,
+  isDemoMode = false,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +22,24 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const maxSizeBytes = maxSizeMb * 1024 * 1024;
+
+  if (isDemoMode) {
+    return (
+      <div className="bg-slate-900/60 border border-amber-500/20 rounded-2xl p-6 text-center space-y-3 shadow-lg shadow-black/40">
+        <div className="w-12 h-12 mx-auto rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <UploadCloud className="w-6 h-6 opacity-75" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-slate-200">
+            Document Ingestion Disabled in Public Demo Mode
+          </h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+            To prevent unauthorized document exposure and ensure shared reproducibility, uploads are disabled. You can query, inspect citations, and analyze the pre-loaded academic demo corpus via the Search, Q&amp;A, and Contract Intelligence tabs.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const validateAndProcessFile = async (file: File) => {
     setErrorMessage(null);

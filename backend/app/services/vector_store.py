@@ -10,6 +10,7 @@ import faiss
 
 from app.schemas.chunk import ChunkRecord, DocumentSummary, SearchResult, SearchResponse, IndexStatsResponse
 from app.schemas.document import DocumentPage
+from app.config import settings
 from app.services.chunker import chunk_document_pages
 from app.services.embedding_service import embedding_service
 from app.services.validator import format_file_size
@@ -17,7 +18,7 @@ from app.services.bm25_store import bm25_store
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = os.getenv("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"))
+DATA_DIR = settings.DATA_DIR
 INDEX_FILE = os.path.join(DATA_DIR, "vector_index.faiss")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata_store.json")
 
@@ -31,11 +32,11 @@ class VectorStore:
         self.dimension = dimension
         self._lock = threading.RLock()
         
-        # Configure persistence directory
+        # Configure persistence directory: defaults to settings.active_data_dir
         if data_dir is not None:
             self.data_dir = data_dir
         else:
-            self.data_dir = DATA_DIR
+            self.data_dir = settings.active_data_dir
 
         self.index_file = os.path.join(self.data_dir, "vector_index.faiss") if self.data_dir else None
         self.metadata_file = os.path.join(self.data_dir, "metadata_store.json") if self.data_dir else None
@@ -43,7 +44,7 @@ class VectorStore:
         # BM25 instance: isolated if custom data_dir provided or explicit instance passed
         if bm25_store_instance is not None:
             self.bm25 = bm25_store_instance
-        elif data_dir is not None and data_dir != DATA_DIR:
+        elif self.data_dir != DATA_DIR:
             from app.services.bm25_store import BM25Store
             self.bm25 = BM25Store(data_dir=self.data_dir)
         else:

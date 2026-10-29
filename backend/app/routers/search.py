@@ -1,5 +1,7 @@
 from typing import Optional, Literal
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from app.config import settings
+from app.services.limiter import limiter
 from app.services.vector_store import vector_store
 from app.services.bm25_store import bm25_store
 from app.services.hybrid_retriever import HybridRetriever, RetrievalStrategy
@@ -7,11 +9,12 @@ from app.schemas.chunk import SearchQuery, SearchResponse, IndexStatsResponse, B
 
 router = APIRouter(prefix="/api/documents", tags=["Hybrid Search & Index"])
 
-# Module-level hybrid retriever singleton
-_hybrid_retriever = HybridRetriever(vector_store=vector_store, bm25_store=bm25_store)
+# Module-level hybrid retriever singleton (uses vector_store's active bm25 instance)
+_hybrid_retriever = HybridRetriever(vector_store=vector_store, bm25_store=vector_store.bm25)
 
 @router.post("/search", response_model=SearchResponse)
-async def hybrid_search_post(query_payload: SearchQuery):
+@limiter.limit(settings.RATE_LIMIT_SEARCH)
+async def hybrid_search_post(request: Request, query_payload: SearchQuery):
     """
     Execute a retrieval query using the specified strategy.
 
@@ -44,7 +47,9 @@ async def hybrid_search_post(query_payload: SearchQuery):
         )
 
 @router.get("/search", response_model=SearchResponse)
+@limiter.limit(settings.RATE_LIMIT_SEARCH)
 async def hybrid_search_get(
+    request: Request,
     q: str = Query(..., min_length=1, description="Search query string"),
     top_k: int = Query(default=5, ge=1, le=50, description="Max results"),
     doc_id: Optional[str] = Query(default=None, description="Optional document ID filter"),
@@ -55,6 +60,7 @@ async def hybrid_search_get(
 ):
     """GET variant of hybrid search."""
     return await hybrid_search_post(
+        request,
         SearchQuery(query=q, top_k=top_k, doc_id=doc_id, min_score=min_score, strategy=strategy)
     )
 

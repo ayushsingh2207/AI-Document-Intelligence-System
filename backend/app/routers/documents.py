@@ -1,8 +1,9 @@
 import os
 import hashlib
 from typing import List, Optional
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Query, Request
 from app.config import settings
+from app.services.limiter import limiter
 from app.services.validator import validate_and_read_upload, format_file_size, sanitize_filename
 from app.services.extractor import process_document
 from app.services.vector_store import vector_store
@@ -20,17 +21,22 @@ def generate_document_id(filename: str, content: bytes) -> str:
     return f"doc_{hasher.hexdigest()[:12]}"
 
 @router.post("/upload", response_model=DocumentExtractionResponse)
+@limiter.limit(settings.RATE_LIMIT_UPLOAD)
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     chunk_size: int = Query(default=500, ge=100, le=2000, description="Semantic chunk size in characters"),
     chunk_overlap: int = Query(default=80, ge=0, le=500, description="Semantic chunk overlap in characters")
 ):
     """
     Upload, validate, extract, and index a document (PDF, DOCX, or TXT).
-    Phase 1: Validates file integrity, enforces size limits, and performs text extraction.
-    Phase 2: Performs semantic-aware chunking, generates embeddings with all-MiniLM-L6-v2,
-             and indexes vectors into FAISS.
+    In DEMO_MODE, document uploads are strictly disabled to prevent untrusted modifications.
     """
+    if settings.DEMO_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Document upload is disabled in public demo mode. Academic demonstration only."
+        )
     try:
         safe_name, file_type, content = await validate_and_read_upload(file)
         
@@ -132,7 +138,15 @@ async def get_document_chunks(doc_id: str):
 
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str):
-    """Delete a document and purge its vectors from the FAISS index and metadata store."""
+    """
+    Delete a document and purge its vectors from the FAISS index and metadata store.
+    In DEMO_MODE, deletions are strictly disabled.
+    """
+    if settings.DEMO_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Document deletion is disabled in public demo mode."
+        )
     deleted = vector_store.delete_document(doc_id)
     if not deleted:
         raise HTTPException(

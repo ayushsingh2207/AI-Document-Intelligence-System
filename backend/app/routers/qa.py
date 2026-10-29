@@ -1,5 +1,7 @@
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
+from app.config import settings
+from app.services.limiter import limiter
 from app.services.vector_store import vector_store
 from app.services.bm25_store import bm25_store
 from app.services.embedding_service import embedding_service
@@ -11,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/documents", tags=["Grounded Q&A"])
 
-# Reuse existing module-level retrieval and storage singletons
-_hybrid_retriever = HybridRetriever(vector_store=vector_store, bm25_store=bm25_store)
+# Reuse existing module-level retrieval and storage singletons (uses active vector_store.bm25)
+_hybrid_retriever = HybridRetriever(vector_store=vector_store, bm25_store=vector_store.bm25)
 _qa_service = GroundedQAService(
     hybrid_retriever=_hybrid_retriever,
     vector_store=vector_store,
@@ -21,7 +23,8 @@ _qa_service = GroundedQAService(
 
 
 @router.post("/qa", response_model=QAResponse)
-async def answer_document_question(request: QARequest):
+@limiter.limit(settings.RATE_LIMIT_QA)
+async def answer_document_question(request: Request, qa_payload: QARequest):
     """
     Answer questions using evidence retrieved from indexed documents with verifiable citations.
 
@@ -35,13 +38,13 @@ async def answer_document_question(request: QARequest):
     """
     try:
         # Check empty or whitespace query
-        if not request.question or not request.question.strip():
+        if not qa_payload.question or not qa_payload.question.strip():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Question cannot be empty or contain only whitespace.",
             )
 
-        response = _qa_service.answer_question(request)
+        response = _qa_service.answer_question(qa_payload)
         return response
     except ValueError as exc:
         msg = str(exc)

@@ -1,4 +1,4 @@
-﻿"""
+"""
 BM25 Lexical Retrieval Store
 =============================
 Parallel lexical index that complements the FAISS dense vector store.
@@ -20,6 +20,7 @@ from typing import List, Dict, Optional, Tuple
 
 import math
 from rank_bm25 import BM25Okapi
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +74,7 @@ class BM25Store:
 
     def __init__(self, data_dir: Optional[str] = None):
         self._lock = threading.RLock()
-        self.data_dir = data_dir or os.getenv(
-            "DATA_DIR",
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-        )
+        self.data_dir = data_dir or settings.active_data_dir
         self.persistence_file = os.path.join(self.data_dir, "bm25_corpus.json")
 
         # Core data structures

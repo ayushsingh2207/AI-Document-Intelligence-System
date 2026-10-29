@@ -22,6 +22,7 @@ interface SearchInterfaceProps {
   onSelectCitation?: (citation: Citation) => void;
   refreshTrigger?: number;
   showDiagnostics?: boolean;
+  isDemoMode?: boolean;
 }
 
 export const SearchInterface: React.FC<SearchInterfaceProps> = ({
@@ -29,6 +30,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
   onSelectCitation,
   refreshTrigger = 0,
   showDiagnostics = false,
+  isDemoMode = false,
 }) => {
   // Mode switcher: "qa" (Ask Questions) or "passages" (Passage Search)
   const [activeMode, setActiveMode] = useState<"qa" | "passages">("qa");
@@ -153,6 +155,10 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
   };
 
   const handleDeleteDocument = async (docId: string, filename: string) => {
+    if (isDemoMode) {
+      alert("Document deletion is disabled in public demo mode.");
+      return;
+    }
     if (!confirm(`Are you sure you want to remove "${filename}" from the searchable knowledge base?`)) {
       return;
     }
@@ -279,15 +285,17 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 <span className="text-[10px] text-zinc-400 font-mono">
                   ({doc.total_pages}p • {doc.total_chunks} passages)
                 </span>
-                <button
-                  onClick={() => handleDeleteDocument(doc.doc_id, doc.filename)}
-                  title={`Remove ${doc.filename} from index`}
-                  className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-400 ml-1 transition-opacity cursor-pointer"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {!isDemoMode && (
+                  <button
+                    onClick={() => handleDeleteDocument(doc.doc_id, doc.filename)}
+                    title={`Remove ${doc.filename} from index`}
+                    className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-400 ml-1 transition-opacity cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ))}
           </div>
