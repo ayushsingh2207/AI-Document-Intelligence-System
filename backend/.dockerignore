@@ -1,4 +1,4 @@
-﻿# Byte-compiled / optimized files
+# Byte-compiled / optimized files
 __pycache__/
 */**/__pycache__/
 *.py[cod]
@@ -16,12 +16,12 @@ env/
 htmlcov/
 scratch/
 
-# Local datasets and model checkpoints (prevent bloat in images)
-data/cuad/
+# Local datasets, runtime storage, and model checkpoints (prevent bloat in images)
+data/
+data/**
 checkpoints/
-data/*.faiss
-data/*.json
-data/*.bin
+scratch/
+tests/
 
 # Secrets and environment files
 .env
