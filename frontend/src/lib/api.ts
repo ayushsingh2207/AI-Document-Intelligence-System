@@ -189,7 +189,18 @@ export interface ContractAnalysisResponse {
 
 
 const getApiBaseUrl = (): string => {
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (!url) {
+    // In production builds, prevent silent fallback to localhost
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Production configuration error: NEXT_PUBLIC_API_URL is missing. " +
+        "Please configure your live backend API URL in the Vercel project settings."
+      );
+    }
+    return "http://localhost:8000";
+  }
+  return url;
 };
 
 export async function checkBackendHealth(): Promise<HealthResponse> {

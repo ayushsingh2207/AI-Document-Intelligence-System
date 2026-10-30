@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -75,6 +75,17 @@ describe('Phase 6.4.1 Demo Safety & Disclaimer Tests', () => {
       content,
       /Document deletion is disabled in public demo mode\./,
       'SearchInterface must block delete action when in demo mode'
+    );
+  });
+
+  it('api.ts validates NEXT_PUBLIC_API_URL and prevents silent localhost fallback in production', () => {
+    const apiPath = path.join(rootDir, 'src', 'lib', 'api.ts');
+    const content = fs.readFileSync(apiPath, 'utf8');
+
+    assert.match(
+      content,
+      /Production configuration error: NEXT_PUBLIC_API_URL is missing/,
+      'api.ts must explicitly error in production if NEXT_PUBLIC_API_URL is missing'
     );
   });
 });
